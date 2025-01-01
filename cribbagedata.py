@@ -27,7 +27,7 @@ class Deck:
             ,'2': {'symbol' : '2', 'value': 2, 'rank': 2}
             ,'3': {'symbol' : '3', 'value': 3, 'rank': 3}
             ,'4': {'symbol' : '4', 'value': 4, 'rank': 4}
-            ,'5': {'symbol' : '5', 'value': 5, 'rank': 5}
+            # ,'5': {'symbol' : '5', 'value': 5, 'rank': 5} # removing 5 for lowest point total. Having a 5 possible means minimum 2 points
             ,'6': {'symbol' : '6', 'value': 6, 'rank': 6}
             ,'7': {'symbol' : '7', 'value': 7, 'rank': 7}
             ,'8': {'symbol' : '8', 'value': 8, 'rank': 8}
@@ -38,10 +38,14 @@ class Deck:
             ,'K': {'symbol' : 'K', 'value': 10, 'rank': 13}
         }
 
-        for suit in self.suits:
-            for rank in self.ranks: #double for loop :)
-                # self.cards.append(Card(suit,suit_symbol,rank,rank_value))
-                self.cards.append(Card(rank=self.ranks[rank], suit=self.suits[suit]))
+        # for suit in self.suits:
+        #     for rank in self.ranks: #double for loop :)
+        #         # self.cards.append(Card(suit,suit_symbol,rank,rank_value))
+        #         self.cards.append(Card(rank=self.ranks[rank], suit=self.suits[suit]))
+
+        for rank in self.ranks:
+            for _ in range(4):
+                self.cards.append(Card(rank=self.ranks[rank]))
     
     def shuffle(self):
         random.shuffle(self.cards)
@@ -58,20 +62,21 @@ class Deck:
         return deckStr
 
 class Card:
-    def __init__ (self,suit,rank):
-        self.suit = suit
+    def __init__ (self,rank):
+        # self.suit = suit
         self.rank = rank
         # self.symbol = symbol
         # self.value = value
-        self.tupl = (str(rank['symbol']), str(suit))
+        # self.tupl = (str(rank['symbol']), str(suit))
 
     def __str__(self):
-        return str(self.rank['symbol'] + self.suit['symbol'])
+        # return str(self.rank['symbol'] + self.suit['symbol'])
+        return str(self.rank['symbol'])
     
     def get_value(self):
         return self.rank['value']
-    def get_suit(self):
-        return self.suit['name']
+    # def get_suit(self):
+    #     return self.suit['name']
     def get_rank(self):
         return self.rank['rank']
 
@@ -121,8 +126,8 @@ class CribbageGame:
     def multiRoundTest(self,roundCount):
         roundCount = roundCount
         dealer = self.players[0]
+        # deck = Deck()
         for round in range(roundCount):
-
             r = CribbageRound(self,dealer)
             roundOutput = r.play()
             player1score,player2score = self.players[0].getScoreInt(),self.players[1].getScoreInt()
@@ -140,6 +145,8 @@ class CribbageGame:
 class CribbageRound:
     def __init__(self,game,dealer):
         self.deck = Deck()
+        # self.deck.shuffle()
+        
         self.game = game
         #create two hands for gameplay
         self.hands = {player: [] for player in self.game.players}
@@ -149,7 +156,7 @@ class CribbageRound:
         self.dealer = dealer
         self.nondealer = [p for p in self.game.players if p!= dealer][0]
 
-        self.testString = ""
+        self.outputString = ""
 
     
     
@@ -167,9 +174,7 @@ class CribbageRound:
 
 
 
-    def _deal(self):
-        self.deck.shuffle()
-
+    def _deal(self):     
         cardsPerPlayer = 6 # to hand, 2 to crib, 4 to play
         
         for _ in range (cardsPerPlayer):
@@ -184,20 +189,50 @@ class CribbageRound:
 
         return sum(i['card'].get_value() for i in self.table[startIndex:]) if self.table else 0
 
-    def scoreChecker(self,cardSequence):
+    def scoreChecker(self,cards):
         score = 0
+        
         scoreScenarios = [scoring.ExactlyEqualsN(n=15), scoring.ExactlyEqualsN(n=31),
                           scoring.HasPairTripleQuad(),scoring.HasStraight_DuringPlay()]
         for scenario in scoreScenarios:
-            s, desc, = scenario.check(cardSequence[:])
+            # result = scenario.check(cards[:])
+            s, desc, = scenario.check(cards[:])
             score += s
             # print("Score " + desc) if desc else None
-            return score
+        return score
 
     def scoreHandChecker(self,cards):
         score = 0
         scoreScenarios = [scoring.CountCombinationsEqualToN(n=15), scoring.HasPairTripleQuad(), 
                           scoring.HasStraight_InHand(), scoring.HasFlush()]
+        for scenario in scoreScenarios:
+            s, desc = scenario.check(cards[:])
+            score += s
+            # print(desc) if desc else None
+        return score
+
+    def scoreCheckerLowestRound(self,cardSequence):
+        score = 0
+        scoreScenarios = [scoring.HasPairTripleQuad(),scoring.HasStraight_DuringPlay()]
+        for scenario in scoreScenarios:
+            result = scenario.check(cardSequence[:])
+            if result is None:
+                continue
+            s, desc, = scenario.check(cardSequence[:])
+            score += s
+            # print("Score " + desc) if desc else None
+        
+        values = [card.get_value() for card in cardSequence]
+        totals = sum(values)
+        if totals == 15 or totals == 31:
+            score += 2
+         
+        
+        return score    
+    def scoreHandCheckerLowestRound(self,cards):
+        score = 0
+        scoreScenarios = [scoring.CountCombinationsEqualToN(n=15), scoring.HasPairTripleQuad(), 
+                          scoring.HasStraight_InHand()]
         for scenario in scoreScenarios:
             s, desc = scenario.check(cards[:])
             score += s
@@ -221,11 +256,12 @@ class CribbageRound:
     #cut deck and play!
     def play(self):
         #shuffle deck!!!
+
         self.deck.shuffle()
 
-        #DEAL THE CARDS DUMBASS
+        #DEAL THE CARDS
         self._deal()
-
+        
         #take 2 cards to send to crib
         #iterate between both players to choose crib cards (this case 2)
         for p,hand in self.hands.items():
@@ -238,7 +274,7 @@ class CribbageRound:
 
         #cut deck
         self.starter = self.deck.cut()
-        self.testString += f"S{self.starter}/"
+        self.outputString += f"S{self.starter}/"
 
         # print(f"Starter card is... {self.starter}")
 
@@ -247,8 +283,8 @@ class CribbageRound:
         #score player hands now for testing
         for p in self.game.players:
             p.resetScore()
-            score = self.scoreHandChecker(cards = self.hands[p] + [self.starter])
-            score += self.jackChecker(cards = self.hands[p], starterCard= self.starter)
+            score = self.scoreHandCheckerLowestRound(cards = self.hands[p] + [self.starter])
+            # score += self.jackChecker(cards = self.hands[p], starterCard= self.starter)
             p.increasePoints(score)
 
             # print(f"{p} points = {score}")
@@ -278,10 +314,10 @@ class CribbageRound:
                     else:
                         
                         if self.get_table_value(startindex) > 0:
-                            self.testString += ("/")
+                            self.outputString += ("/")
 
                         self.table.append({'player':p, 'card':card})
-                        self.testString += (f"{p}{card}") # Pikaboo
+                        self.outputString += (f"{p}{card}") # Pikaboo
 
                         self.hands[p].remove(card)
                         if not self.hands[p]:
@@ -289,17 +325,17 @@ class CribbageRound:
                         
                         tabelValue = self.get_table_value(startindex)
                         # print("Player %s plays %s for %d" %(str(p), str(card), tabelValue))
-                        self.testString += (str(tabelValue)) # Pikaboo
+                        self.outputString += (str(tabelValue)) # Pikaboo
 
-                        score = self.scoreChecker(cardSequence=[move['card'] for move in self.table[startindex:]])
+                        score = self.scoreCheckerLowestRound(cardSequence=[move['card'] for move in self.table[startindex:]])
 
 
                         if score:
                             playerIndex = self.game.players.index(p)
                             self.game.players[playerIndex].increasePoints(score)
 
-                            self.testString += ("+") # Pikaboo
-                        # self.testString += ("/") # Pikaboo
+                            self.outputString += ("+") # Pikaboo
+                        # self.outputString += ("/") # Pikaboo
 
             
             if len(activePlayers) == 0: #gives last player 1 point for being the last player
@@ -314,23 +350,23 @@ class CribbageRound:
                     activePlayers += [playerofLastCard]
                 if self.get_table_value(startindex) == 31:
                     score += 1
-                    self.testString += ("+") # Pikaboo
+                    self.outputString += ("+") # Pikaboo
                 
                 self.game.players[playerIndex].increasePoints(score)
-                self.testString += ("+") # Pikaboo
+                self.outputString += ("+") # Pikaboo
                 
         #crib scoring
         # print (f"crib scoring")
-        score = self.scoreHandChecker(cards =(self.crib + [self.starter]))
+        score = self.scoreHandCheckerLowestRound(cards =(self.crib + [self.starter]))
         if score:
             playerIndex = self.game.players.index(self.dealer)
             self.game.players[playerIndex].increaseCribPoints(score)
         
-        self.testString += "%"
+        self.outputString += "%"
         for card in self.crib:
-            self.testString += str(card)
+            self.outputString += str(card)
 
-        return self.testString
+        return self.outputString
         # print(self)
         
 
