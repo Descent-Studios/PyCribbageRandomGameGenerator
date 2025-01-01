@@ -6,6 +6,7 @@ import sys
 import argparse
 import re
 import os
+from multiprocessing import Pool, cpu_count
 
 
 
@@ -126,6 +127,8 @@ class CribbageGame:
     def multiRoundTest(self,roundCount):
         roundCount = roundCount
         dealer = self.players[0]
+        results = []
+
         # deck = Deck()
         for round in range(roundCount):
             r = CribbageRound(self,dealer)
@@ -139,12 +142,35 @@ class CribbageGame:
 
 
             pass
+    def multiThread(self,roundCount):
+        dealer = self.players[0]
+        players = self.players
+
+        args = [(self,dealer,players) for _ in range(roundCount)]
+
+        with Pool(processes=cpu_count()) as pool:
+            results = pool.starmap(self.singleRound, args)
+        #assuming 0 is minimum check
+        sortedResults = sorted(results, key=lambda line:int (line[1:line.index('S')]))
+        with open(self.file_path, 'a', encoding='utf-8') as file:
+            file.writelines(sortedResults)
+
+
+    def singleRound(self,game,dealer,players):
+        r = CribbageRound(game,dealer)
+        roundOutput = r.play()
+        player1Score  = players[0].getScoreInt()
+        player2Score = players[1].getScoreInt()
+        totalScore = player1Score + player2Score
+        return f"T{totalScore}{roundOutput}&{player1Score}/{player2Score}\n"
+
 
 
 
 class CribbageRound:
     def __init__(self,game,dealer):
         self.deck = Deck()
+        self.deck.shuffle()
         # self.deck.shuffle()
         
         self.game = game
@@ -189,28 +215,6 @@ class CribbageRound:
 
         return sum(i['card'].get_value() for i in self.table[startIndex:]) if self.table else 0
 
-    def scoreChecker(self,cards):
-        score = 0
-        
-        scoreScenarios = [scoring.ExactlyEqualsN(n=15), scoring.ExactlyEqualsN(n=31),
-                          scoring.HasPairTripleQuad(),scoring.HasStraight_DuringPlay()]
-        for scenario in scoreScenarios:
-            # result = scenario.check(cards[:])
-            s, desc, = scenario.check(cards[:])
-            score += s
-            # print("Score " + desc) if desc else None
-        return score
-
-    def scoreHandChecker(self,cards):
-        score = 0
-        scoreScenarios = [scoring.CountCombinationsEqualToN(n=15), scoring.HasPairTripleQuad(), 
-                          scoring.HasStraight_InHand(), scoring.HasFlush()]
-        for scenario in scoreScenarios:
-            s, desc = scenario.check(cards[:])
-            score += s
-            # print(desc) if desc else None
-        return score
-
     def scoreCheckerLowestRound(self,cardSequence):
         score = 0
         scoreScenarios = [scoring.HasPairTripleQuad(),scoring.HasStraight_DuringPlay()]
@@ -218,17 +222,15 @@ class CribbageRound:
             result = scenario.check(cardSequence[:])
             if result is None:
                 continue
-            s, desc, = scenario.check(cardSequence[:])
+            s, desc, = result
             score += s
-            # print("Score " + desc) if desc else None
-        
+      
         values = [card.get_value() for card in cardSequence]
         totals = sum(values)
         if totals == 15 or totals == 31:
             score += 2
-         
-        
-        return score    
+        return score  
+      
     def scoreHandCheckerLowestRound(self,cards):
         score = 0
         scoreScenarios = [scoring.CountCombinationsEqualToN(n=15), scoring.HasPairTripleQuad(), 
@@ -238,6 +240,7 @@ class CribbageRound:
             score += s
             # print(desc) if desc else None
         return score
+    
     def jackChecker(self,cards,starterCard):
         score = 0
         for card in cards:
@@ -255,11 +258,7 @@ class CribbageRound:
 
     #cut deck and play!
     def play(self):
-        #shuffle deck!!!
 
-        self.deck.shuffle()
-
-        #DEAL THE CARDS
         self._deal()
         
         #take 2 cards to send to crib
@@ -282,23 +281,28 @@ class CribbageRound:
 
         #score player hands now for testing
         for p in self.game.players:
+            self.outputString += f"{p}"
             p.resetScore()
             score = self.scoreHandCheckerLowestRound(cards = self.hands[p] + [self.starter])
             # score += self.jackChecker(cards = self.hands[p], starterCard= self.starter)
             p.increasePoints(score)
+            for card in self.hands[p]:
+                self.outputString += f"{card}"
 
             # print(f"{p} points = {score}")
 
+        
+        
+       
 
-
-        #begin play!
+           #begin play!
 
         #iterate between each player to complete play randomly
 
         if(self.starter.get_rank() == 11):
             # print(f"point given for jack starter")
             self.dealer.increasePoints(2)
-        
+        self.outputString += "#"
         activePlayers = [self.dealer, self.nondealer]
         while sum([len(v) for v in self.hands.values()]):
             startindex = len(self.table)
@@ -334,7 +338,8 @@ class CribbageRound:
                             playerIndex = self.game.players.index(p)
                             self.game.players[playerIndex].increasePoints(score)
 
-                            self.outputString += ("+") # Pikaboo
+                            if tabelValue == 15:
+                                self.outputString += ("+") # Pikaboo
                         # self.outputString += ("/") # Pikaboo
 
             
@@ -355,16 +360,17 @@ class CribbageRound:
                 self.game.players[playerIndex].increasePoints(score)
                 self.outputString += ("+") # Pikaboo
                 
-        #crib scoring
-        # print (f"crib scoring")
+         #crib score calculation
+
         score = self.scoreHandCheckerLowestRound(cards =(self.crib + [self.starter]))
         if score:
             playerIndex = self.game.players.index(self.dealer)
             self.game.players[playerIndex].increaseCribPoints(score)
-        
         self.outputString += "%"
         for card in self.crib:
             self.outputString += str(card)
+
+        
 
         return self.outputString
         # print(self)
@@ -431,9 +437,6 @@ def main():
         #order placed
         #and crib
         #ending with total points
-    
-
-
 
 
 if __name__ == '__main__':
@@ -476,7 +479,7 @@ if __name__ == '__main__':
     begin = time.time()
 
     game = CribbageGame(players=players,file_path=fileName,maximumScore=maxSort)
-    game.multiRoundTest(n)
+    game.multiThread(n)
     
     end = time.time()
 
