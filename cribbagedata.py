@@ -98,7 +98,7 @@ class CribbageGame:
     def insert_sorted_line(self,new_line,finalScore):
         tempFilePath = self.file_path + '.tmp'
 
-        with open(self.file_path, 'r') as input_file, open(tempFilePath, 'w') as output_file:
+        with open(self.file_path, 'r', encoding='utf-8') as input_file, open(tempFilePath, 'w', encoding='utf-8') as output_file:
             inserted = False
             for line in input_file:
                 exisiting_score = self.extractScore(line)
