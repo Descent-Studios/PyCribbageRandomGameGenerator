@@ -223,7 +223,6 @@ class CribbageRound:
         #shuffle deck!!!
         self.deck.shuffle()
 
-        #DEAL THE CARDS DUMBASS
         self._deal()
 
         #take 2 cards to send to crib
